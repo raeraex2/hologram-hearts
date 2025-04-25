@@ -16,7 +16,7 @@ const COLOR_SPACE = THREE.SRGBColorSpace;
 const params = {
   useDepthPeeling: true,
   layers: 5,
-  opacity: 0.5,
+  opacity: 1.0,
   doubleSided: true,
 };
 const clearColor = new THREE.Color();
@@ -142,7 +142,9 @@ const materialLA = new DepthPeelMaterial({
   const geometry = new THREE.CylinderGeometry(1, 1, 2, 32, 1, false);
 
   // Create a material
-  const material = new THREE.MeshNormalMaterial({});
+  const material = new THREE.MeshMatcapMaterial({
+    color: new THREE.Color("lightgreen"),
+  });
 
   const cylinder = new THREE.Mesh(geometry, material);
   cylinder.scale.set(0.125, 1, 0.125);
@@ -200,8 +202,8 @@ function render() {
       material.depthWrite = true;
       material.opacity = 1.0;
       material.uniforms.uOpacity.value = 1.0;
-      (material.side = params.doubleSided ? THREE.DoubleSide : THREE.FrontSide),
-        (material.forceSinglePass = false);
+      material.side = params.doubleSided ? THREE.DoubleSide : THREE.FrontSide;
+      material.forceSinglePass = false;
     }
   });
 
@@ -268,10 +270,8 @@ function depthPeelRender() {
         material.depthWrite = true;
         material.opacity = params.opacity;
         material.uniforms.uOpacity.value = params.opacity;
-        (material.side = params.doubleSided
-          ? THREE.DoubleSide
-          : THREE.FrontSide),
-          (material.forceSinglePass = true);
+        material.side = params.doubleSided ? THREE.DoubleSide : THREE.FrontSide;
+        material.forceSinglePass = true;
 
         renderer.getDrawingBufferSize(material.resolution);
       }
@@ -291,17 +291,16 @@ function depthPeelRender() {
   renderer.setClearColor(clearColor, clearAlpha);
 
   // render transparent layers
+  renderer.autoClear = false;
+  copyQuad.material.blending = THREE.NormalBlending;
+  copyQuad.material.transparent = true;
+  copyQuad.material.depthTest = false;
+  copyQuad.material.depthWrite = false;
   for (let i = params.layers - 1; i >= 0; i--) {
-    renderer.autoClear = false;
     layers[i].depthTexture = null;
     copyQuad.material.map = layers[i].texture;
-    copyQuad.material.blending = THREE.NormalBlending;
-    copyQuad.material.transparent = true;
-    copyQuad.material.depthTest = false;
-    copyQuad.material.depthWrite = false;
     copyQuad.render(renderer);
   }
-
   renderer.autoClear = true;
 }
 
