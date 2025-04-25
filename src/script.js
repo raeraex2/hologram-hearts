@@ -1,12 +1,9 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import GUI from "lil-gui";
-import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { STLLoader } from "three/addons/loaders/STLLoader.js";
 import { PLYLoader } from "three/addons/loaders/PLYLoader.js";
 import holographicVertexShader from "./shaders/holographic/vertex.glsl";
 import holographicFragmentShader from "./shaders/holographic/fragment.glsl";
-import { FullScreenQuad } from "three/examples/jsm/Addons.js";
 
 const layers = [];
 
@@ -14,7 +11,7 @@ const SAMPLES = 0;
 const DEPTH_BUFFER = true;
 const COLOR_SPACE = THREE.SRGBColorSpace;
 const params = {
-  useDepthPeeling: true,
+  useDepthPeeling: false,
   layers: 5,
   opacity: 1.0,
   doubleSided: true,
@@ -38,8 +35,6 @@ const canvas = document.querySelector("canvas.webgl");
 const scene = new THREE.Scene();
 
 // Loaders
-const gltfLoader = new GLTFLoader();
-const stlLoader = new STLLoader();
 const plyLoader = new PLYLoader();
 
 /**
@@ -77,9 +72,6 @@ renderer.setPixelRatio(window.devicePixelRatio);
 const depthTexture = new THREE.DepthTexture(1, 1, THREE.FloatType);
 const depthTexture2 = new THREE.DepthTexture(1, 1, THREE.FloatType);
 const opaqueDepthTexture = new THREE.DepthTexture(1, 1, THREE.FloatType);
-
-// set up quad
-const copyQuad = new FullScreenQuad(new THREE.MeshBasicMaterial());
 
 const transparentGroup = new THREE.Group();
 const opaqueGroup = new THREE.Group();
@@ -161,6 +153,18 @@ plyLoader.load("./la.ply", (ply) => {
   transparentGroup.add(mesh);
 });
 
+const quadScene = new THREE.Scene();
+const quadCamera = new THREE.OrthographicCamera(-0.5, 0.5, 0.5, -0.5, 0, 1);
+
+// create a two-triangle quad covering the screen
+const quadGeo = new THREE.PlaneGeometry(1, 1);
+const quadMat = new THREE.MeshBasicMaterial({
+  depthTest: false,
+  depthWrite: false,
+});
+const quadMesh = new THREE.Mesh(quadGeo, quadMat);
+quadScene.add(quadMesh);
+
 /**
  * Animate
  */
@@ -209,7 +213,14 @@ function render() {
 
   opaqueGroup.visible = true;
   transparentGroup.visible = true;
+
+  renderer.setRenderTarget(renderTarget);
   renderer.render(scene, camera);
+  renderer.setRenderTarget(null);
+
+  quadMat.map = renderTarget.texture;
+  quadMat.needsUpdate = true;
+  renderer.render(quadScene, quadCamera);
 }
 
 function depthPeelRender() {
@@ -238,12 +249,12 @@ function depthPeelRender() {
   renderer.setRenderTarget(null);
 
   // render opaque layer
-  copyQuad.material.map = renderTarget.texture;
-  copyQuad.material.blending = THREE.NoBlending;
-  copyQuad.material.transparent = false;
-  copyQuad.material.depthTest = false;
-  copyQuad.material.depthWrite = false;
-  copyQuad.render(renderer);
+  quadMat.map = renderTarget.texture;
+  quadMat.blending = THREE.NoBlending;
+  quadMat.transparent = false;
+  quadMat.depthTest = false;
+  quadMat.depthWrite = false;
+  renderer.render(quadScene, quadCamera);
   renderTarget.depthTexture = null;
 
   const clearAlpha = renderer.getClearAlpha();
@@ -292,14 +303,15 @@ function depthPeelRender() {
 
   // render transparent layers
   renderer.autoClear = false;
-  copyQuad.material.blending = THREE.NormalBlending;
-  copyQuad.material.transparent = true;
-  copyQuad.material.depthTest = false;
-  copyQuad.material.depthWrite = false;
+  quadMat.blending = THREE.NormalBlending;
+  quadMat.transparent = true;
+  quadMat.depthTest = false;
+  quadMat.depthWrite = false;
   for (let i = params.layers - 1; i >= 0; i--) {
     layers[i].depthTexture = null;
-    copyQuad.material.map = layers[i].texture;
-    copyQuad.render(renderer);
+    quadMat.map = layers[i].texture;
+    quadMat.needsUpdate = true;
+    renderer.render(quadScene, quadCamera);
   }
   renderer.autoClear = true;
 }
