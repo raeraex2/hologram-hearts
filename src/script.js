@@ -14,7 +14,7 @@ const SAMPLES = 0;
 const DEPTH_BUFFER = true;
 const COLOR_SPACE = THREE.SRGBColorSpace;
 const params = {
-  useDepthPeeling: false,
+  useDepthPeeling: true,
   layers: 5,
   opacity: 0.5,
   doubleSided: true,
@@ -43,38 +43,16 @@ const stlLoader = new STLLoader();
 const plyLoader = new PLYLoader();
 
 /**
- * Sizes
- */
-const sizes = {
-  width: window.innerWidth,
-  height: window.innerHeight,
-};
-
-window.addEventListener("resize", () => {
-  // Update sizes
-  sizes.width = window.innerWidth;
-  sizes.height = window.innerHeight;
-
-  // Update camera
-  camera.aspect = sizes.width / sizes.height;
-  camera.updateProjectionMatrix();
-
-  // Update renderer
-  renderer.setSize(sizes.width, sizes.height);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-});
-
-/**
  * Camera
  */
 // Base camera
 const camera = new THREE.PerspectiveCamera(
   25,
-  sizes.width / sizes.height,
+  window.innerWidth / window.innerHeight,
   0.1,
   100
 );
-camera.position.set(7, 7, 7);
+camera.position.set(0, 0, 10);
 scene.add(camera);
 
 // Controls
@@ -92,8 +70,8 @@ const renderer = new THREE.WebGLRenderer({
   antialias: true,
 });
 renderer.setClearColor(rendererParameters.clearColor);
-renderer.setSize(sizes.width, sizes.height);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(window.devicePixelRatio);
 
 // set up textures
 const depthTexture = new THREE.DepthTexture(1, 1, THREE.FloatType);
@@ -156,6 +134,21 @@ const materialLA = new DepthPeelMaterial({
     uOpacity: new THREE.Uniform(1.0),
   },
 });
+
+// Add objects
+
+{
+  // Create a cylinder geometry
+  const geometry = new THREE.CylinderGeometry(1, 1, 2, 32, 1, false);
+
+  // Create a material
+  const material = new THREE.MeshNormalMaterial({});
+
+  const cylinder = new THREE.Mesh(geometry, material);
+  cylinder.scale.set(0.125, 1, 0.125);
+  cylinder.position.set(0.5, 0, 0.5);
+  opaqueGroup.add(cylinder);
+}
 
 plyLoader.load("./heart.ply", (ply) => {
   const mesh = new THREE.Mesh(ply, materialRA);
@@ -378,7 +371,6 @@ function DepthPeelMaterialMixin(baseMaterial) {
     constructor(...args) {
       super(...args);
 
-      this._firstPass = false;
       this._enableDepthPeeling = false;
 
       this._uniforms = {
@@ -389,7 +381,7 @@ function DepthPeelMaterialMixin(baseMaterial) {
     }
 
     customProgramCacheKey() {
-      return `${Number(this.enableDepthPeeling)}|${Number(this.nearDepth)}`;
+      return `${Number(this.enableDepthPeeling)}|${Number(!this.nearDepth)}`;
     }
 
     onBeforeCompile(shader) {
