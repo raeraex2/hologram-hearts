@@ -126,30 +126,43 @@ gui.addColor(rendererParameters, "clearColor").onChange(() => {
  * Material
  */
 const materialParameters = {};
-materialParameters.color = "#70c1ff";
+materialParameters.colorRA = "#70c1ff";
+materialParameters.colorLA = "#ff0000";
 
-gui.addColor(materialParameters, "color").onChange(() => {
-  material.uniforms.uColor.value.set(materialParameters.color);
+gui.addColor(materialParameters, "colorRA").onChange(() => {
+  materialRA.uniforms.uColor.value.set(materialParameters.colorRA);
+});
+gui.addColor(materialParameters, "colorLA").onChange(() => {
+  materialLA.uniforms.uColor.value.set(materialParameters.colorLA);
 });
 
 const DepthPeelMaterial = DepthPeelMaterialMixin(THREE.ShaderMaterial);
 
-const material = new DepthPeelMaterial({
+const materialRA = new DepthPeelMaterial({
   vertexShader: holographicVertexShader,
   fragmentShader: holographicFragmentShader,
   uniforms: {
     uTime: new THREE.Uniform(0),
-    uColor: new THREE.Uniform(new THREE.Color(materialParameters.color)),
+    uColor: new THREE.Uniform(new THREE.Color(materialParameters.colorRA)),
     uOpacity: new THREE.Uniform(1.0),
   },
-  //   transparent: true,
-  //   side: THREE.DoubleSide,
-  //   depthWrite: false,
-  //   blending: THREE.AdditiveBlending,
+});
+const materialLA = new DepthPeelMaterial({
+  vertexShader: holographicVertexShader,
+  fragmentShader: holographicFragmentShader,
+  uniforms: {
+    uTime: new THREE.Uniform(0),
+    uColor: new THREE.Uniform(new THREE.Color(materialParameters.colorLA)),
+    uOpacity: new THREE.Uniform(1.0),
+  },
 });
 
 plyLoader.load("./heart.ply", (ply) => {
-  const mesh = new THREE.Mesh(ply, material);
+  const mesh = new THREE.Mesh(ply, materialRA);
+  transparentGroup.add(mesh);
+});
+plyLoader.load("./la.ply", (ply) => {
+  const mesh = new THREE.Mesh(ply, materialLA);
   transparentGroup.add(mesh);
 });
 
@@ -162,7 +175,7 @@ const tick = () => {
   const elapsedTime = clock.getElapsedTime();
 
   // Update material
-  material.uniforms.uTime.value = elapsedTime;
+  materialRA.uniforms.uTime.value = elapsedTime;
 
   // Update controls
   controls.update();
