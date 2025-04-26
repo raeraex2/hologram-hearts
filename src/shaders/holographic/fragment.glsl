@@ -26,7 +26,7 @@ void main() {
 
     // Final color
     gl_FragColor = vec4(uColor * (holographic), uOpacity);
+    //gl_FragColor = vec4(uColor, 1.0);
 
-    #include <tonemapping_fragment>
     #include <colorspace_fragment>
 }

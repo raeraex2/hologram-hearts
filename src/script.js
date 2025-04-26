@@ -69,8 +69,8 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
 
 // set up textures
-const depthTexture = new THREE.DepthTexture(1, 1, THREE.FloatType);
-const depthTexture2 = new THREE.DepthTexture(1, 1, THREE.FloatType);
+const depthTextureA = new THREE.DepthTexture(1, 1, THREE.FloatType);
+const depthTextureB = new THREE.DepthTexture(1, 1, THREE.FloatType);
 const opaqueDepthTexture = new THREE.DepthTexture(1, 1, THREE.FloatType);
 
 const transparentGroup = new THREE.Group();
@@ -98,12 +98,16 @@ gui.addColor(rendererParameters, "clearColor").onChange(() => {
 const materialParameters = {};
 materialParameters.colorRA = "#70c1ff";
 materialParameters.colorLA = "#ff0000";
+materialParameters.colorCyl = "#90ee90";
 
 gui.addColor(materialParameters, "colorRA").onChange(() => {
   materialRA.uniforms.uColor.value.set(materialParameters.colorRA);
 });
 gui.addColor(materialParameters, "colorLA").onChange(() => {
   materialLA.uniforms.uColor.value.set(materialParameters.colorLA);
+});
+gui.addColor(materialParameters, "colorCyl").onChange(() => {
+  materialCyl.color.set(materialParameters.colorCyl);
 });
 
 const DepthPeelMaterial = DepthPeelMaterialMixin(THREE.ShaderMaterial);
@@ -126,19 +130,16 @@ const materialLA = new DepthPeelMaterial({
     uOpacity: new THREE.Uniform(1.0),
   },
 });
+const materialCyl = new THREE.MeshMatcapMaterial({
+  color: new THREE.Color(materialParameters.colorCyl),
+});
 
 // Add objects
-
 {
   // Create a cylinder geometry
-  const geometry = new THREE.CylinderGeometry(1, 1, 2, 32, 1, false);
+  const geometryCyl = new THREE.CylinderGeometry(1, 1, 2, 32, 1, false);
 
-  // Create a material
-  const material = new THREE.MeshMatcapMaterial({
-    color: new THREE.Color("lightgreen"),
-  });
-
-  const cylinder = new THREE.Mesh(geometry, material);
+  const cylinder = new THREE.Mesh(geometryCyl, materialCyl);
   cylinder.scale.set(0.125, 1, 0.125);
   cylinder.position.set(0.5, 0, 0.5);
   opaqueGroup.add(cylinder);
@@ -214,13 +215,17 @@ function render() {
   opaqueGroup.visible = true;
   transparentGroup.visible = true;
 
-  renderer.setRenderTarget(renderTarget);
-  renderer.render(scene, camera);
-  renderer.setRenderTarget(null);
+  // // Indirect
+  // renderer.setRenderTarget(renderTarget);
+  // renderer.render(scene, camera);
+  // renderer.setRenderTarget(null);
 
-  quadMat.map = renderTarget.texture;
-  quadMat.needsUpdate = true;
-  renderer.render(quadScene, quadCamera);
+  // quadMat.map = renderTarget.texture;
+  // quadMat.needsUpdate = true;
+  // renderer.render(quadScene, quadCamera);
+
+  // Direct
+  renderer.render(scene, camera);
 }
 
 function depthPeelRender() {
@@ -261,11 +266,10 @@ function depthPeelRender() {
   renderer.getClearColor(clearColor);
 
   // perform depth peeling
+  opaqueGroup.visible = false;
+  transparentGroup.visible = true;
+  const depthTextures = [depthTextureA, depthTextureB];
   for (let i = 0; i < params.layers; i++) {
-    opaqueGroup.visible = false;
-    transparentGroup.visible = true;
-
-    const depthTextures = [depthTexture, depthTexture2];
     const writeDepthTexture = depthTextures[(i + 1) % 2];
     const nearDepthTexture = depthTextures[i % 2];
 
@@ -332,13 +336,13 @@ function onWindowResize() {
   layers.forEach((rt) => rt.dispose());
   layers.length = 0;
 
-  depthTexture.image.width = dpr * w;
-  depthTexture.image.height = dpr * h;
-  depthTexture.dispose();
+  depthTextureA.image.width = dpr * w;
+  depthTextureA.image.height = dpr * h;
+  depthTextureA.dispose();
 
-  depthTexture2.image.width = dpr * w;
-  depthTexture2.image.height = dpr * h;
-  depthTexture2.dispose();
+  depthTextureB.image.width = dpr * w;
+  depthTextureB.image.height = dpr * h;
+  depthTextureB.dispose();
 
   opaqueDepthTexture.image.width = dpr * w;
   opaqueDepthTexture.image.height = dpr * h;
