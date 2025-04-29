@@ -5,7 +5,7 @@ import * as THREE from "three";
  * Mixes depth-peeling uniforms & logic into any THREE.Material subclass.
  */
 declare function DepthPeelMaterialMixin<
-  T extends new (...args: any[]) => THREE.Material
+  T extends new (...args: never[]) => THREE.Material
 >(
   baseMaterial: T
 ): new (...args: ConstructorParameters<T>) => InstanceType<T> & {

@@ -1,15 +1,28 @@
-import React, { StrictMode, Suspense, useEffect, useState } from "react";
+import React, { StrictMode, Suspense, useMemo, useRef } from "react";
 import { createRoot } from "react-dom/client";
-import { Canvas, extend, ThreeElement, useLoader } from "@react-three/fiber";
+import {
+  Canvas,
+  extend,
+  ThreeElement,
+  useFrame,
+  useLoader,
+} from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import { PLYLoader } from "three/addons/loaders/PLYLoader.js";
-import GUI from "lil-gui";
-import { Color, ColorRepresentation } from "three";
+import {
+  Color,
+  MeshBasicMaterial,
+  OrthographicCamera,
+  Scene,
+  SRGBColorSpace,
+  WebGLRenderTarget,
+} from "three";
 import DepthPeelMaterialMixin from "./DepthPeelMaterialMixin";
 import { ShaderMaterial } from "three";
 import holographicVertexShader from "./shaders/holographic/vertex.glsl";
 import holographicFragmentShader from "./shaders/holographic/fragment.glsl";
 import { Uniform } from "three";
+import { useControls } from "leva";
 
 const DepthPeelMaterial = DepthPeelMaterialMixin(ShaderMaterial);
 
@@ -23,48 +36,11 @@ declare module "@react-three/fiber" {
 }
 
 interface IConfig {
+  backColor: Color;
   raColor: Color;
   laColor: Color;
   cylColor: Color;
 }
-
-interface GuiControlProps {
-  config: IConfig;
-  setConfig: React.Dispatch<React.SetStateAction<IConfig>>;
-}
-
-const GuiControl: React.FC<GuiControlProps> = ({ config, setConfig }) => {
-  useEffect(() => {
-    const gui = new GUI();
-
-    const raFolder = gui.addFolder("RA");
-    raFolder
-      .addColor(config, "raColor")
-      .onChange((c: ColorRepresentation | undefined) => {
-        setConfig((cfg) => ({ ...cfg, raColor: new Color(c) }));
-      });
-
-    const laFolder = gui.addFolder("LA");
-    laFolder
-      .addColor(config, "laColor")
-      .onChange((c: ColorRepresentation | undefined) => {
-        setConfig((cfg) => ({ ...cfg, laColor: new Color(c) }));
-      });
-
-    const cylFolder = gui.addFolder("Cylinder");
-    cylFolder
-      .addColor(config, "cylColor")
-      .onChange((c: ColorRepresentation | undefined) => {
-        setConfig((cfg) => ({ ...cfg, cylColor: new Color(c) }));
-      });
-
-    return () => {
-      gui.destroy();
-    };
-  }, []);
-
-  return false;
-};
 
 const RaGeometry = () => {
   const geomRA = useLoader(PLYLoader, "./heart.ply");
@@ -80,56 +56,124 @@ interface HeartProps {
   config: IConfig;
 }
 
+const SAMPLES = 0;
+const DEPTH_BUFFER = true;
+const COLOR_SPACE = SRGBColorSpace;
+
+const renderTarget = new WebGLRenderTarget(1, 1, {
+  colorSpace: COLOR_SPACE,
+  depthBuffer: DEPTH_BUFFER,
+  samples: SAMPLES,
+});
+// const compositeTarget = new WebGLRenderTarget(1, 1, {
+//   colorSpace: COLOR_SPACE,
+//   depthBuffer: DEPTH_BUFFER,
+//   samples: SAMPLES,
+// });
+
+const quadCamera = new OrthographicCamera(-0.5, 0.5, 0.5, -0.5, 0, 1);
+
 const Heart: React.FC<HeartProps> = ({ config }) => {
+  const mainSceneRef = useRef<Scene>(null);
+  const quadSceneRef = useRef<Scene>(null);
+  const quadMatRef = useRef<MeshBasicMaterial>(null);
+
+  useFrame(({ gl, camera, size }) => {
+    // gl.setClearColor(config.backColor);
+    // gl.render(mainSceneRef.current!, camera);
+
+    renderTarget.setSize(size.width, size.height);
+
+    gl.setRenderTarget(renderTarget);
+    gl.setClearColor(config.backColor);
+    gl.render(mainSceneRef.current!, camera);
+    gl.setRenderTarget(null);
+
+    quadMatRef.current!.map = renderTarget.texture;
+    quadMatRef.current!.needsUpdate = true;
+    gl.render(quadSceneRef.current!, quadCamera);
+  }, 1);
+
+  const uniformsRa = useMemo(() => {
+    return {
+      uTime: new Uniform(0),
+      uColor: new Uniform("#000000"),
+      uOpacity: new Uniform(1.0),
+    };
+  }, []);
+
+  const uniformsLa = useMemo(() => {
+    return {
+      uTime: new Uniform(0),
+      uColor: new Uniform("#000000"),
+      uOpacity: new Uniform(1.0),
+    };
+  }, []);
+
   return (
     <>
-      <group name="opaque">
-        <mesh scale={[0.125, 1, 0.125]} position={[0.5, 0, 0.5]}>
-          <cylinderGeometry args={[1, 1, 2, 32, 1, false]} />
-          <meshMatcapMaterial color={config.cylColor} />
-        </mesh>
-      </group>
-      <group name="transparent">
+      <scene ref={quadSceneRef}>
         <mesh>
-          <RaGeometry />
-          <depthPeelMaterial
-            vertexShader={holographicVertexShader}
-            fragmentShader={holographicFragmentShader}
-            uniforms={{
-              uTime: new Uniform(0),
-              uColor: new Uniform(config.raColor),
-              uOpacity: new Uniform(1.0),
-            }}
+          <planeGeometry args={[1, 1]} />
+          <meshBasicMaterial
+            ref={quadMatRef}
+            depthTest={false}
+            depthWrite={false}
           />
         </mesh>
-        <mesh>
-          <LaGeometry />
-          <depthPeelMaterial
-            vertexShader={holographicVertexShader}
-            fragmentShader={holographicFragmentShader}
-            uniforms={{
-              uTime: new Uniform(0),
-              uColor: new Uniform(config.laColor),
-              uOpacity: new Uniform(1.0),
-            }}
-          />
-        </mesh>
-      </group>
+      </scene>
+      <scene ref={mainSceneRef}>
+        <group name="opaque">
+          <mesh scale={[0.125, 1, 0.125]} position={[0.5, 0, 0.5]}>
+            <cylinderGeometry args={[1, 1, 2, 32, 1, false]} />
+            <meshMatcapMaterial color={config.cylColor} />
+          </mesh>
+        </group>
+        <group name="transparent">
+          <mesh>
+            <RaGeometry />
+            <shaderMaterial
+              vertexShader={holographicVertexShader}
+              fragmentShader={holographicFragmentShader}
+              uniforms={uniformsRa}
+              uniforms-uColor-value={config.raColor}
+            />
+          </mesh>
+          <mesh>
+            <LaGeometry />
+            <depthPeelMaterial
+              vertexShader={holographicVertexShader}
+              fragmentShader={holographicFragmentShader}
+              uniforms={uniformsLa}
+              uniforms-uColor-value={config.laColor}
+            />
+          </mesh>
+        </group>
+      </scene>
     </>
   );
 };
 
 function App() {
-  const [config, setConfig] = useState<IConfig>({
-    raColor: new Color("lightblue"),
-    laColor: new Color("pink"),
-    cylColor: new Color("lightgreen"),
+  const leva = useControls({
+    backColor: "#808080",
+    raColor: "#49707e",
+    laColor: "#ff8698",
+    cylColor: "#47da47",
   });
+
+  const config: IConfig = {
+    backColor: new Color(leva.backColor),
+    laColor: new Color(leva.laColor),
+    raColor: new Color(leva.raColor),
+    cylColor: new Color(leva.cylColor),
+  };
 
   return (
     <Suspense fallback={<span style={{ color: "white" }}>Loading...</span>}>
       <StrictMode>
         <Canvas>
+          <color attach={"background"} args={[leva.backColor]} />
           <OrbitControls enableDamping={false} />
           <Heart config={config} />
           {/* <mesh>
@@ -137,7 +181,6 @@ function App() {
             <meshMatcapMaterial color={"pink"} />
           </mesh> */}
         </Canvas>
-        <GuiControl config={config} setConfig={setConfig} />
       </StrictMode>
     </Suspense>
   );
