@@ -16,3 +16,4 @@ declare function DepthPeelMaterialMixin<
 };
 
 export default DepthPeelMaterialMixin;
+export declare const isDepthPeelMaterial: unique symbol;

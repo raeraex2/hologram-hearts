@@ -11,7 +11,11 @@ import { OrbitControls } from "@react-three/drei";
 import { PLYLoader } from "three/addons/loaders/PLYLoader.js";
 import {
   Color,
+  DoubleSide,
+  Group,
+  Mesh,
   MeshBasicMaterial,
+  NormalBlending,
   OrthographicCamera,
   Scene,
   SRGBColorSpace,
@@ -36,6 +40,7 @@ declare module "@react-three/fiber" {
 }
 
 interface IConfig {
+  depthPeeling: boolean;
   backColor: Color;
   raColor: Color;
   laColor: Color;
@@ -77,21 +82,41 @@ const Heart: React.FC<HeartProps> = ({ config }) => {
   const mainSceneRef = useRef<Scene>(null);
   const quadSceneRef = useRef<Scene>(null);
   const quadMatRef = useRef<MeshBasicMaterial>(null);
+  const transparentGrpRef = useRef<Group>(null);
 
   useFrame(({ gl, camera, size }) => {
-    // gl.setClearColor(config.backColor);
-    // gl.render(mainSceneRef.current!, camera);
+    if (config.depthPeeling) {
+    } else {
+      transparentGrpRef.current!.traverse((obj) => {
+        if (!(obj instanceof Mesh)) return;
+        const material = obj.material;
+        if (material) {
+          material.enableDepthPeeling = false;
+          material.opaqueDepth = null;
+          material.nearDepth = null;
+          material.blending = NormalBlending;
+          material.depthWrite = true;
+          material.opacity = 1.0;
+          material.uniforms.uOpacity.value = 1.0;
+          material.side = DoubleSide;
+          material.forceSinglePass = false;
+        }
+      });
 
-    renderTarget.setSize(size.width, size.height);
+      // gl.setClearColor(config.backColor);
+      // gl.render(mainSceneRef.current!, camera);
 
-    gl.setRenderTarget(renderTarget);
-    gl.setClearColor(config.backColor);
-    gl.render(mainSceneRef.current!, camera);
-    gl.setRenderTarget(null);
+      renderTarget.setSize(size.width, size.height);
 
-    quadMatRef.current!.map = renderTarget.texture;
-    quadMatRef.current!.needsUpdate = true;
-    gl.render(quadSceneRef.current!, quadCamera);
+      gl.setRenderTarget(renderTarget);
+      gl.setClearColor(config.backColor);
+      gl.render(mainSceneRef.current!, camera);
+      gl.setRenderTarget(null);
+
+      quadMatRef.current!.map = renderTarget.texture;
+      quadMatRef.current!.needsUpdate = true;
+      gl.render(quadSceneRef.current!, quadCamera);
+    }
   }, 1);
 
   const uniformsRa = useMemo(() => {
@@ -129,10 +154,10 @@ const Heart: React.FC<HeartProps> = ({ config }) => {
             <meshMatcapMaterial color={config.cylColor} />
           </mesh>
         </group>
-        <group name="transparent">
+        <group ref={transparentGrpRef}>
           <mesh>
             <RaGeometry />
-            <shaderMaterial
+            <depthPeelMaterial
               vertexShader={holographicVertexShader}
               fragmentShader={holographicFragmentShader}
               uniforms={uniformsRa}
@@ -156,13 +181,15 @@ const Heart: React.FC<HeartProps> = ({ config }) => {
 
 function App() {
   const leva = useControls({
-    backColor: "#808080",
-    raColor: "#49707e",
-    laColor: "#ff8698",
-    cylColor: "#47da47",
+    depthPeeling: false,
+    backColor: "#1d1f2a",
+    raColor: "#70c1ff",
+    laColor: "#ff0000",
+    cylColor: "#90ee90",
   });
 
   const config: IConfig = {
+    depthPeeling: leva.depthPeeling,
     backColor: new Color(leva.backColor),
     laColor: new Color(leva.laColor),
     raColor: new Color(leva.raColor),

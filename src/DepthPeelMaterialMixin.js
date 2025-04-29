@@ -1,5 +1,7 @@
 import * as THREE from "three";
 
+const isDepthPeelMaterial = Symbol("isDepthPeelMaterial");
+
 function DepthPeelMaterialMixin(baseMaterial) {
   return class extends baseMaterial {
     get nearDepth() {
@@ -36,6 +38,7 @@ function DepthPeelMaterialMixin(baseMaterial) {
 
     constructor(...args) {
       super(...args);
+      this[isDepthPeelMaterial] = true;
 
       this._enableDepthPeeling = false;
 
@@ -103,4 +106,5 @@ function DepthPeelMaterialMixin(baseMaterial) {
   };
 }
 
+export { isDepthPeelMaterial };
 export default DepthPeelMaterialMixin;
